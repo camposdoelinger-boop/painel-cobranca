@@ -181,15 +181,20 @@
     catch (e) { return Promise.resolve(null); }
   }
   function textoDe(blob, gz) {
-    if (!gz) return blob.text();
-    if (typeof DecompressionStream === 'undefined') throw new Error('Navegador sem suporte a .gz — envie o CSV sem compactar.');
-    return new Response(blob.stream().pipeThrough(new DecompressionStream('gzip'))).text();
+    // confere a assinatura gzip (1f 8b): se o navegador/CDN já descompactou, lê como texto
+    return blob.slice(0, 2).arrayBuffer().then(function (ab) {
+      var b = new Uint8Array(ab);
+      var ehGz = b.length === 2 && b[0] === 0x1f && b[1] === 0x8b;
+      if (!ehGz) return blob.text();
+      if (typeof DecompressionStream === 'undefined') throw new Error('Navegador sem suporte a .gz — use Chrome ou Edge atualizados.');
+      return new Response(blob.stream().pipeThrough(new DecompressionStream('gzip'))).text();
+    });
   }
   function baixarArquivo(nome) {
     return authPronto.then(listarVersoes).then(function (vs) {
       var gz = (nome + '.gz') in vs;
       var real = gz ? nome + '.gz' : nome;
-      if (!(real in vs)) return Promise.reject(new Error('Arquivo não encontrado no Storage: ' + nome));
+      if (!(real in vs)) { avisoArquivo(nome, Object.keys(vs)); return Promise.reject(new Error('Arquivo não encontrado no Storage: ' + nome)); }
       var chave = 'https://cache.local/' + encodeURIComponent(real) + '?v=' + encodeURIComponent(vs[real]);
       return abrirCache().then(function (c) {
         return (c ? c.match(chave) : Promise.resolve(null)).then(function (hit) {
@@ -211,13 +216,47 @@
       });
     });
   }
+  var faltando = [];
+  function avisoArquivo(nome, existentes) {
+    if (faltando.indexOf(nome) < 0) faltando.push(nome);
+    quandoPronto(function () {
+      var b = document.getElementById('fx-aviso');
+      if (!b) {
+        b = el('div', { id: 'fx-aviso' });
+        b.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);top:64px;z-index:99998;max-width:720px;width:calc(100% - 32px);background:#FDECEC;border:1px solid #E52329;color:#7A1015;border-radius:10px;padding:12px 16px;font:13px/1.45 -apple-system,BlinkMacSystemFont,sans-serif;box-shadow:0 6px 24px rgba(0,0,0,.12)';
+        document.body.appendChild(b);
+      }
+      b.innerHTML = '<b>Faltam arquivos de dados no Supabase</b> (Storage → bucket <code>' + BUCKET + '</code>, soltos, sem subpasta):<br>' +
+        faltando.map(function (n) { return '• <code>' + n + '.gz</code>'; }).join('<br>') +
+        '<br><span style="color:#5A6370">Arquivos encontrados no bucket: ' + (existentes.length ? existentes.map(function (n) { return '<code>' + n + '</code>'; }).join(', ') : 'nenhum') + '</span>';
+    });
+  }
+  var erros = [];
+  function avisoErro(nome, msg) {
+    erros.push(nome + ' → ' + msg);
+    quandoPronto(function () {
+      var b = document.getElementById('fx-erro');
+      if (!b) {
+        b = el('div', { id: 'fx-erro' });
+        b.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:56px;z-index:99998;max-width:720px;width:calc(100% - 32px);background:#FFF6E5;border:1px solid #C9821A;color:#5A3A00;border-radius:10px;padding:12px 16px;font:13px/1.45 -apple-system,BlinkMacSystemFont,sans-serif;box-shadow:0 6px 24px rgba(0,0,0,.12)';
+        document.body.appendChild(b);
+      }
+      b.innerHTML = '<b>Erro ao ler os dados</b> (tire um print e envie ao suporte):<br>' + erros.map(function (x) { return '• ' + String(x).replace(/[<&>]/g, ''); }).join('<br>');
+    });
+  }
   var fetchOriginal = window.fetch.bind(window);
   window.fetch = function (input, init) {
     var url = typeof input === 'string' ? input : (input && input.url) || '';
     var m = /^(?:\.\/)?dados\/(.+)$/.exec(url);
     if (!m) return fetchOriginal(input, init);
-    return baixarArquivo(decodeURIComponent(m[1])).then(function (txt) {
+    var nome = decodeURIComponent(m[1]);
+    return baixarArquivo(nome).then(function (txt) {
       return new Response(txt, { status: 200, headers: { 'content-type': 'text/csv; charset=utf-8' } });
+    }, function (e) {
+      var msg = (e && (e.message || e.error || e.statusCode)) || String(e);
+      console.error('[dados] falha ao carregar ' + nome + ':', e);
+      if (!/não encontrado no Storage/.test(msg)) avisoErro(nome, msg);
+      throw e;
     });
   };
 
