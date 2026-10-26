@@ -148,7 +148,7 @@
   }
   function quandoPronto(fn) { if (document.body) fn(); else document.addEventListener('DOMContentLoaded', fn); }
   var agendado = false;
-  function aoMudar() { if (agendado) return; agendado = true; requestAnimationFrame(function () { agendado = false; injetarContatos(); injetarCorrecao(); marcarCards(); }); }
+  function aoMudar() { if (agendado) return; agendado = true; setTimeout(function () { agendado = false; injetarContatos(); injetarCorrecao(); marcarCards(); }, 30); }
   quandoPronto(function () { new MutationObserver(aoMudar).observe(document.body, { childList: true, subtree: true }); });
 
 
