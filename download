@@ -1,0 +1,7 @@
+# Nunca versionar dados de alunos
+*.csv
+*.csv.gz
+*.xlsx
+*.XLSX
+dados/
+.vercel
