@@ -60,6 +60,21 @@
     '.fx-n{font-size:12.5px;color:#5A6370;margin:4px 0}.fx-g{display:grid;gap:8px;margin-top:8px}.fx-g2{display:grid;gap:8px}' +
     '.fx-r{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;font-size:13px}.fx-l{font-weight:600;width:100%}' +
     '.fx-in{border:1px solid #CDD3DB;border-radius:8px;padding:8px 10px;font:inherit;font-size:13px;width:100%;box-sizing:border-box;background:#fff}' +
+    '.fx-ct .fx-mb{margin-top:8px;border:1px solid #1F4E79;background:#fff;color:#1F4E79;border-radius:8px;padding:5px 10px;font-size:12px;font-weight:600;cursor:pointer}' +
+    '#fx-mat{position:fixed;inset:0;z-index:99991;background:rgba(20,25,35,.45);display:flex;align-items:flex-start;justify-content:center;padding:32px 16px;overflow:auto;font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;color:#1C2430}' +
+    '#fx-mat .bx{background:#fff;border-radius:14px;width:100%;max-width:1040px;box-shadow:0 20px 60px rgba(0,0,0,.25)}' +
+    '#fx-mat .hd{display:flex;align-items:center;gap:10px;padding:16px 20px;border-bottom:1px solid #E3E6EA}#fx-mat .hd h2{margin:0;font-size:17px;flex:1}' +
+    '#fx-mat .hd .x{border:0;background:none;font-size:22px;cursor:pointer;color:#6B7480}#fx-mat .hd .pr{border:1px solid #CDD3DB;background:#fff;border-radius:8px;padding:6px 10px;cursor:pointer;font-weight:600;font-size:12px}' +
+    '#fx-mat .ct{padding:16px 20px 22px}#fx-mat .per{margin-top:18px;padding-top:12px;border-top:2px solid #E52329}#fx-mat h3{margin:0 0 6px;font-size:15px}' +
+    '#fx-mat .tl{list-style:none;margin:10px 0;padding:0 0 0 16px;border-left:2px solid #E3E6EA}#fx-mat .tl>li{position:relative;margin:0 0 12px;padding-left:10px}' +
+    '#fx-mat .tl>li:before{content:"";position:absolute;left:-23px;top:4px;width:12px;height:12px;border-radius:50%;background:#fff;border:3px solid #E52329}' +
+    '#fx-mat .tt{display:flex;gap:10px;align-items:baseline}#fx-mat .tt span{color:#6B7480;font-size:12.5px}' +
+    '#fx-mat .mv{margin:4px 0;padding-left:16px;font-size:12.5px}#fx-mat .mv .in{color:#2E7D4F}#fx-mat .mv .ex{color:#B3261E}' +
+    '#fx-mat .rs{font-size:13px;font-weight:600;background:#F7F8FA;border-radius:6px;padding:5px 8px;display:inline-block}' +
+    '#fx-mat .tw{overflow:auto}#fx-mat table.pc{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:8px}#fx-mat .pc th,#fx-mat .pc td{padding:6px;border-bottom:1px solid #EEF0F3;text-align:left;white-space:nowrap}' +
+    '#fx-mat .pc th{font-size:11px;text-transform:uppercase;color:#6B7480}#fx-mat .pc .up{color:#B3261E;font-weight:600}#fx-mat .pc .dn{color:#1F4E79;font-weight:600}#fx-mat .pc .tot td{font-weight:700;border-top:2px solid #E3E6EA}' +
+    '#fx-mat .expl{margin-top:10px;background:#FFF8F0;border-left:4px solid #C9821A;border-radius:6px;padding:10px 12px;font-size:13px}' +
+    '@media print{body>*:not(#fx-mat){display:none!important}#fx-mat{position:static;background:none;padding:0}#fx-mat .bx{box-shadow:none}#fx-mat .hd button{display:none}}' +
     '.fx-bt{justify-self:start;border:0;background:#E52329;color:#fff;border-radius:8px;padding:8px 14px;font-weight:600;cursor:pointer}.fx-bt[disabled]{opacity:.6}';
   var st = el('style'); st.textContent = CSS; document.head.appendChild(st);
 
@@ -113,6 +128,11 @@
         });
         ps.appendChild(dl);
         if (r.obs) ps.appendChild(el('div', 'ob', r.obs));
+        if (r.ra) {
+          var bm = el('button', 'fx-mb', 'Histórico da matrícula e da mensalidade'); bm.type = 'button';
+          bm.addEventListener('click', function () { abrirMatricula(r, nome, lista); });
+          ps.appendChild(bm);
+        }
         pp.appendChild(ps);
       });
     }
@@ -131,6 +151,118 @@
   function aoMudar() { if (agendado) return; agendado = true; requestAnimationFrame(function () { agendado = false; injetarContatos(); injetarCorrecao(); marcarCards(); }); }
   quandoPronto(function () { new MutationObserver(aoMudar).observe(document.body, { childList: true, subtree: true }); });
 
+
+
+  /* ------------------------------------------- 1c. histórico da matrícula */
+  var MAT = null;
+  function carregarMatricula() {
+    if (!MAT) {
+      MAT = Promise.all([csv('dados/matricula_levas.csv'), csv('dados/matricula_eventos.csv'), csv('dados/kanban_titulos.csv'), csv('dados/planos_alunos.csv').catch(function () { return []; })])
+        .then(function (r) { return { levas: r[0], eventos: r[1], titulos: r[2], planos: r[3] }; });
+      MAT.catch(function () { MAT = null; });
+    }
+    return MAT;
+  }
+  function fmtD(s) { if (!s) return '—'; var p = String(s).slice(0, 10).split('-'); return p.length === 3 ? p[2] + '/' + p[1] + '/' + p[0] : s; }
+  function fmtDH(s) { return s ? fmtD(s) + (String(s).length > 10 ? ' ' + String(s).slice(11, 16) : '') : '—'; }
+  var BRL2 = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
+  function pct(s) { var n = parseFloat(String(s || '').replace('%', '').replace(',', '.')); return isFinite(n) ? n / 100 : 0; }
+  function abrirMatricula(pessoa, nomeCard, lista) {
+    var o = document.getElementById('fx-mat'); if (o) o.remove();
+    o = el('div'); o.id = 'fx-mat';
+    var bx = el('div', 'bx'); o.appendChild(bx);
+    var hd = el('div', 'hd'); var h2 = el('h2', null, 'Matrícula e mensalidade · ' + pessoa.nome); hd.appendChild(h2);
+    var bp = el('button', 'pr', 'Imprimir'); bp.type = 'button'; bp.addEventListener('click', function () { window.print(); });
+    var x = el('button', 'x', '×'); x.type = 'button'; x.addEventListener('click', function () { o.remove(); }); hd.append(bp, x);
+    bx.appendChild(hd);
+    var ct = el('div', 'ct'); ct.appendChild(el('div', 'fx-n', 'Carregando histórico…')); bx.appendChild(ct);
+    o.addEventListener('click', function (e) { if (e.target === o) o.remove(); });
+    document.body.appendChild(o);
+    carregarMatricula().then(function (M) { montarMatricula(ct, M, pessoa, nomeCard, lista); }, function () {
+      ct.replaceChildren(el('div', 'fx-n', 'A base de histórico de matrícula ainda não foi carregada (arquivos matricula_levas.csv e matricula_eventos.csv).'));
+    });
+  }
+  function montarMatricula(ct, M, pessoa, nomeCard, lista) {
+    ct.replaceChildren();
+    var ra = pessoa.ra, key = slug(nomeCard);
+    var levas = M.levas.filter(function (l) { return l.ra === ra; });
+    var evs = M.eventos.filter(function (e) { return e.ra === ra; });
+    var alunosCard = lista.filter(function (r) { return /Aluno|próprio aluno/.test(r.papel); });
+    var soUm = alunosCard.length <= 1;
+    var tits = M.titulos.filter(function (t) {
+      return t.key === key && t.categoria === 'Mensalidade/Parcela' && (t.aluno === pessoa.nome || (soUm && !t.aluno));
+    });
+    var periodos = Array.from(new Set(levas.map(function (l) { return l.periodo; }).concat(tits.map(function (t) { return t.semestre; })))).filter(Boolean).sort();
+    if (!periodos.length) { ct.appendChild(el('div', 'fx-n', 'Não há movimentações de matrícula nem parcelas de mensalidade para este aluno em 2026.')); return; }
+    ct.appendChild(el('div', 'fx-n', 'RA ' + ra + '. Cada "leva" reúne as movimentações feitas em datas próximas (até 3 dias de intervalo). Valores pelo preço de cada disciplina no semestre; mensalidade = total do semestre ÷ 6, antes de bolsa e descontos.'));
+    periodos.reverse().forEach(function (per) {
+      var sec = el('section', 'per'); sec.appendChild(el('h3', null, 'Semestre ' + per));
+      var plano = M.planos.filter(function (p) { return p.ra === ra && p.periodo === per; })[0];
+      var bolsa = plano ? pct(plano.bolsa && plano.valor_bolsa ? plano.valor_bolsa : '') : 0;
+      if (plano) sec.appendChild(el('div', 'fx-n', 'Plano: ' + (plano.periodicidade || plano.plano || '—') + (plano.bolsa ? ' · Bolsa: ' + plano.bolsa + (plano.valor_bolsa ? ' (' + plano.valor_bolsa + ')' : '') : '') + (plano.desconto ? ' · Desconto: ' + plano.desconto + (plano.valor_desconto ? ' (' + plano.valor_desconto + ')' : '') : '')));
+      var ls = levas.filter(function (l) { return l.periodo === per; }).sort(function (a, b) { return +a.leva - +b.leva; });
+      // linha do tempo das levas
+      var tl = el('ol', 'tl');
+      var antes = null;
+      ls.forEach(function (l) {
+        var li = el('li');
+        var tt = el('div', 'tt'); tt.append(el('b', null, l.leva + 'ª leva'), el('span', null, l.data_log === 'não' ? 'mudança percebida em ' + l.data_ini.slice(5, 7) + '/' + l.data_ini.slice(0, 4) + ' (base mensal, sem registro no log)' : fmtDH(l.data_ini) + (l.data_fim && l.data_fim.slice(0, 10) !== l.data_ini.slice(0, 10) ? ' a ' + fmtD(l.data_fim) : '')));
+        li.appendChild(tt);
+        var es = evs.filter(function (e) { return e.periodo === per && e.leva === l.leva; });
+        var inc = {}, exc = {};
+        es.forEach(function (e) { (e.acao === 'Inclusão' ? inc : exc)[e.coddisc] = e; delete (e.acao === 'Inclusão' ? exc : inc)[e.coddisc]; });
+        var ul = el('ul', 'mv');
+        Object.keys(inc).forEach(function (k) { var e = inc[k]; var i = el('li', 'in'); i.textContent = '+ ' + e.disciplina + ' (turma ' + e.turma + ') · ' + BRL2.format(num(e.valor)) + (e.preco_estimado ? ' (preço estimado — não está na tabela)' : '') + (e.confianca === 'provável' ? ' *' : '') + (e.usuario ? ' · por ' + e.usuario : '') + (e.data && e.data.slice(0, 10) !== l.data_ini.slice(0, 10) ? ' em ' + fmtD(e.data) : ''); ul.appendChild(i); });
+        Object.keys(exc).forEach(function (k) { var e = exc[k]; var i = el('li', 'ex'); i.textContent = '− ' + e.disciplina + ' (turma ' + e.turma + ') · ' + BRL2.format(num(e.valor)) + (e.preco_estimado ? ' (preço estimado)' : '') + (e.confianca === 'provável' ? ' *' : '') + (e.usuario ? ' · por ' + e.usuario : '') + (e.status_para ? ' (' + e.status_para.toLowerCase() + ')' : ''); ul.appendChild(i); });
+        if (!ul.children.length) ul.appendChild(el('li', null, 'Sem mudança líquida (inclusões e exclusões se anularam).'));
+        li.appendChild(ul);
+        var tot = num(l.total_semestre), men = num(l.mensalidade);
+        var res = el('div', 'rs');
+        res.textContent = 'Ficou com ' + l.n_disc + ' disciplina(s): ' + BRL2.format(tot) + ' no semestre → ' + BRL2.format(men) + '/mês' + (bolsa ? ' (' + BRL2.format(men * (1 - bolsa)) + ' com bolsa)' : '') + (+l.sem_preco ? ' · inclui ' + l.sem_preco + ' disciplina(s) com preço estimado' : '');
+        if (antes) { var d = men - num(antes.mensalidade); if (Math.abs(d) > 0.5) res.textContent += ' · ' + (d > 0 ? 'aumento de ' : 'redução de ') + BRL2.format(Math.abs(d)) + '/mês'; }
+        li.appendChild(res); tl.appendChild(li); antes = l;
+      });
+      if (ls.length) sec.appendChild(tl); else sec.appendChild(el('div', 'fx-n', 'Sem movimentações de matrícula registradas no log para este semestre.'));
+      // parcelas x matrícula vigente
+      var ps = tits.filter(function (t) { return t.semestre === per; }).sort(function (a, b) { return a.vencimento < b.vencimento ? -1 : 1; });
+      if (ps.length) {
+        var tb = el('table', 'pc'); var h = el('tr');
+        ['Parcela', 'Vencimento', 'Cobrado', 'Pago', 'Em aberto', 'Mensalidade pela matrícula*', 'Diferença', 'Situação'].forEach(function (c) { h.appendChild(el('th', null, c)); }); tb.appendChild(h);
+        var sc = 0, sp = 0, se = 0, sab = 0;
+        ps.forEach(function (t) {
+          var vig = ls[0] || null; ls.forEach(function (l) { if (l.data_ini.slice(0, 10) <= t.vencimento) vig = l; });
+          var esperado = vig ? num(vig.mensalidade) * (1 - bolsa) : null;
+          var cob = num(t.valor_original), pg = num(t.valor_baixado), ab = num(t.valor_aberto);
+          sc += cob; sp += pg; sab += ab; if (esperado != null) se += esperado;
+          var dif = esperado != null ? cob - esperado : null;
+          var tr = el('tr');
+          tr.append(el('td', null, String(t.parcela || '').replace(/\.0$/, '')), el('td', null, fmtD(t.vencimento)), el('td', null, BRL2.format(cob)), el('td', null, BRL2.format(pg)), el('td', null, BRL2.format(ab)),
+            el('td', null, esperado != null ? BRL2.format(esperado) + ' (' + vig.leva + 'ª leva)' : '—'),
+            el('td', dif != null && Math.abs(dif) > 1 ? (dif > 0 ? 'up' : 'dn') : null, dif != null ? (Math.abs(dif) <= 1 ? 'ok' : (dif > 0 ? '+' : '−') + BRL2.format(Math.abs(dif))) : '—'),
+            el('td', 'fx-n', t.situacao || ''));
+          tb.appendChild(tr);
+        });
+        var tf = el('tr', 'tot'); tf.append(el('td', null, 'Total'), el('td'), el('td', null, BRL2.format(sc)), el('td', null, BRL2.format(sp)), el('td', null, BRL2.format(sab)), el('td', null, se ? BRL2.format(se) : '—'), el('td', null, se ? ((sc - se) >= 0 ? '+' : '−') + BRL2.format(Math.abs(sc - se)) : '—'), el('td')); tb.appendChild(tf);
+        var wrap = el('div', 'tw'); wrap.appendChild(tb); sec.appendChild(wrap);
+        // explicação
+        var ult = ls[ls.length - 1], ultP = ps[ps.length - 1];
+        var ex = el('div', 'expl');
+        var txt = [];
+        if (ult) txt.push('Hoje a matrícula de ' + per + ' (' + ult.leva + 'ª leva, ' + fmtD(ult.data_ini) + ') tem ' + ult.n_disc + ' disciplina(s), somando ' + BRL2.format(num(ult.total_semestre)) + ' no semestre, o que dá ' + BRL2.format(num(ult.mensalidade)) + ' por mês' + (bolsa ? ' e ' + BRL2.format(num(ult.mensalidade) * (1 - bolsa)) + ' com a bolsa' : '') + '.');
+        if (ls.length > 1) {
+          var pri = ls[0]; var d = num(ult.mensalidade) - num(pri.mensalidade);
+          if (Math.abs(d) > 0.5) txt.push('Na 1ª leva (' + fmtD(pri.data_ini) + ') eram ' + pri.n_disc + ' disciplina(s) e ' + BRL2.format(num(pri.mensalidade)) + '/mês; as inclusões e exclusões seguintes ' + (d > 0 ? 'aumentaram' : 'reduziram') + ' a mensalidade em ' + BRL2.format(Math.abs(d)) + '.');
+        }
+        if (ultP) txt.push('A parcela mais recente (' + fmtD(ultP.vencimento) + ') foi de ' + BRL2.format(num(ultP.valor_original)) + '.');
+        txt.push('No semestre foram cobrados ' + BRL2.format(sc) + ', pagos ' + BRL2.format(sp) + (se ? '; pela matrícula vigente em cada vencimento seriam ' + BRL2.format(se) + ' (diferença de ' + ((sc - se) >= 0 ? '+' : '−') + BRL2.format(Math.abs(sc - se)) + ')' : '') + '.');
+        if (per === '2026/1') txt.push('Atenção: as parcelas 1 e 2 de 2026/1 que venceram em 2025 não estão na extração.');
+        ex.textContent = txt.join(' ');
+        sec.appendChild(ex);
+      }
+      ct.appendChild(sec);
+    });
+    ct.appendChild(el('div', 'fx-n', '* Mensalidade pela matrícula = disciplinas ativas na data do vencimento × preço do semestre ÷ 6, menos a bolsa do plano. Descontos de pontualidade, acordos e ajustes manuais não entram nessa conta. Disciplinas sem preço na tabela recebem o preço mediano das demais disciplinas do aluno (indicado como estimado). Disciplinas marcadas com * foram identificadas por aproximação (o log do RM não traz o nome da disciplina). Quando a mudança não aparece no log, a data é o mês em que ela surgiu na base mensal de disciplinas.'));
+  }
 
   /* ------------------------------- 1b. correção sistêmica (cobrança indevida) */
   var CORR = new Map(), DB = null;
@@ -499,7 +631,7 @@
   }
 
   /* ---- atualizar bases */
-  var ARQS = ['cards.csv', 'kanban_titulos.csv', 'pagadores.csv', 'titulos_jan_jun.csv', 'titulos_jul_dez.csv', 'disciplinas.csv', 'planos_alunos.csv', 'contatos.csv'];
+  var ARQS = ['cards.csv', 'kanban_titulos.csv', 'pagadores.csv', 'titulos_jan_jun.csv', 'titulos_jul_dez.csv', 'disciplinas.csv', 'planos_alunos.csv', 'contatos.csv', 'matricula_levas.csv', 'matricula_eventos.csv'];
   function abaBases(ct) {
     ct.appendChild(el('div', 'nt', 'Envie os arquivos gerados pelo processamento das extrações do RM (.csv ou .csv.gz). Arquivos com o mesmo nome substituem os atuais. O histórico do quadro não é afetado.'));
     var lst = el('table'); lst.style.margin = '12px 0'; ct.appendChild(lst);
