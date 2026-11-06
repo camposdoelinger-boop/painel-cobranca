@@ -3,5 +3,10 @@
 *.csv.gz
 *.xlsx
 *.XLSX
+*.zip
 dados/
+saida/
+# tabela de De/Para (status e centro de custo), sem dados de alunos
+!processamento/depara.xlsx
 .vercel
+/processamento/
